@@ -10,6 +10,8 @@ import Subject
 import SubjectConfirmation
 import SubjectConfirmationData
 import Response
+import generateKeys
+import generateCertificate
 import org.apache.xml.security.c14n.Canonicalizer
 import org.apache.xml.security.Init
 import com.fasterxml.jackson.dataformat.xml.XmlMapper
@@ -31,6 +33,7 @@ import java.time.ZoneOffset
 import java.util.*
 import Attribute as AttributeStatement
 import kotlin.random.Random
+import kotlin.collections.listOf
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 import javax.xml.crypto.dsig.*
@@ -46,7 +49,7 @@ import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
-class SAMLAttributeDataAccessProvider(configuration: SAMLDataAccessProviderConfiguration) : AttributeDataAccessProvider {
+class SAMLAttributeDataAccessProvider() {
 
     companion object {
         private val logger: Logger = LoggerFactory.getLogger(SAMLAttributeDataAccessProvider::class.java)
@@ -57,23 +60,27 @@ class SAMLAttributeDataAccessProvider(configuration: SAMLDataAccessProviderConfi
         Init.init()
     }
 
-    private val exceptionFactory = configuration.exceptionFactory
-    private val sessionManager = configuration.sessionManager
-    private val cryptoStore = configuration.cryptoStore
-    private val tokenEndpoint = configuration.tokenEndpoint.get()
+    //private val exceptionFactory = configuration.exceptionFactory
+    //private val sessionManager = configuration.sessionManager
+    //private val cryptoStore = configuration.cryptoStore
+    //private val tokenEndpoint = configuration.tokenEndpoint.get()
+//
+    //private val privKey = cryptoStore.privateKey
+    //private val cert = cryptoStore.certificates[0]
 
-    private val privKey = cryptoStore.privateKey
-    private val cert = cryptoStore.certificates[0]
+    private val tokenEndpoint = "Endpoint"
+    private val keypair = generateKeys()
+    private val cert = generateCertificate(keypair)
 
-    override fun getAttributes(subject: String): AttributeTableView {TODO()}
+    fun getAttributes(subject: String): AttributeTableView {TODO()}
 
-    override fun getAttributes(subjectMap: MutableMap<*, *>): AttributeTableView? {
+    fun getAttributes(subjectMap: MutableMap<*, *>): List<String> {
         val list: MutableList<Attributes> = mutableListOf()
 
         val jwtFields = tokenizeJWT(subjectMap["token"].toString())
 
-        val idAss = "_" + generateRandomString(sessionManager.sessionId.length)
-        val idRes = "_" + generateRandomString(sessionManager.sessionId.length)
+        val idAss = "_" + generateRandomString(18)
+        val idRes = "_" + generateRandomString(18)
 
         val assertion = assembleAssertion(jwtFields, id=idAss)
         var response : Response
@@ -107,14 +114,18 @@ class SAMLAttributeDataAccessProvider(configuration: SAMLDataAccessProviderConfi
             }
         }
 
-        val attribute = Attributes.of("assertion", finAss)
-        sessionManager.put(attribute["assertion"])
-        val attribute2 = Attributes.of("response", finRes)
-        sessionManager.put(attribute2["response"])
-        list.add(attribute)
-        list.add(attribute2)
+        val samlList = listOf(finAss, finRes)
 
-        return AttributeTableView.ofAttributes(list)
+        return samlList
+
+        //val attribute = Attributes.of("assertion", finAss)
+        //////sessionManager.put(attribute["assertion"])
+        //val attribute2 = Attributes.of("response", finRes)
+        //////sessionManager.put(attribute2["response"])
+        //list.add(attribute)
+        //list.add(attribute2)
+
+        //return AttributeTableView.ofAttributes(list)
     }
 
     private fun assembleResponse(jwtFields: List<String>, assertion: Assertion, id: String) : Response {
@@ -142,6 +153,7 @@ class SAMLAttributeDataAccessProvider(configuration: SAMLDataAccessProviderConfi
 
         val assertion = Assertion(id, iat) // init assertion, convert timestamp to Date
 
+        // Questions - aud can be a single string. If this is the case this fails with casterror.
         val audArr = token.get("aud") as JSONArray
         val audList = audArr.toList()
 
@@ -246,7 +258,7 @@ class SAMLAttributeDataAccessProvider(configuration: SAMLDataAccessProviderConfi
             listOf(kif.newX509Data(listOf(cert)))
         ))
 
-        val dsc = DOMSignContext(privKey, doc.documentElement)
+        val dsc = DOMSignContext(keypair.private, doc.documentElement)
         dsc.defaultNamespacePrefix = "ds"
         val element: Element = doc.documentElement as Element
         dsc.setIdAttributeNS(element, null, "ID")

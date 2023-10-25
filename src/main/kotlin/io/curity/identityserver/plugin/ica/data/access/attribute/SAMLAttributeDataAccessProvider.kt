@@ -48,6 +48,7 @@ import javax.xml.transform.Transformer
 import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
+import javax.xml.XMLConstants
 
 class SAMLAttributeDataAccessProvider() {
 
@@ -92,7 +93,7 @@ class SAMLAttributeDataAccessProvider() {
             "onlyAssertion" -> {
                 logger.info("Assertion signature requested, generating Signature")
                 finAss = generateSignature(assertion)
-                finRes = generateSignature(null, assembleResponse(jwtFields,assertion,idRes), signRes = false, finAss) // TODO : NOT WORKING YET
+                finRes = generateSignature(null, assembleResponse(jwtFields,null,idRes), signRes = false, finAss) // TODO : NOT WORKING YET
             }
             "onlyResponse" -> {
                 logger.info("Response signature requested, generating Signature")
@@ -128,7 +129,7 @@ class SAMLAttributeDataAccessProvider() {
         //return AttributeTableView.ofAttributes(list)
     }
 
-    private fun assembleResponse(jwtFields: List<String>, assertion: Assertion, id: String) : Response {
+    private fun assembleResponse(jwtFields: List<String>, assertion: Assertion? = null, id: String) : Response {
         logger.info("Assembling Response")
         val token = JSONObject(base64UrlDecode(jwtFields[1]))
 
@@ -138,7 +139,9 @@ class SAMLAttributeDataAccessProvider() {
 
         response.setIssuer(token.get("samlIssuer").toString())
 
-        response.setAssertion(assertion)
+        assertion?.let {
+            response.setAssertion(assertion)
+        }
 
         return response
     }
@@ -225,8 +228,8 @@ class SAMLAttributeDataAccessProvider() {
             canon.canonicalize(assertionString.toByteArray(), streamer, false)
             val docAssertion : Document = builder.parse(streamer.toString().byteInputStream())
             //logger.info("STREAMER : $streamer") // STREAMER OUTPUT OF ASSERTION STILL VALID ASSERTION + VALID SIGNATURE
-            //logger.info("docAssertion : $docAssertion") // OUTPUT -> [#document: null]
-            doc.adoptNode(docAssertion.documentElement)
+            println("docAssertion : $docAssertion") // OUTPUT -> [#document: null]
+            doc.documentElement.appendChild(doc.adoptNode(docAssertion.documentElement))
             streamer.reset()
             if(!signRes){
                 trans.transform(DOMSource(doc), StreamResult(streamer))

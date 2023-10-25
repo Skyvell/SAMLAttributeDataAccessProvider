@@ -47,6 +47,14 @@ class Response(sessionID: String, iat: String, requestID: String = "", version: 
     fun setAssertion(assertion: Assertion) {
         Assertion = assertion
     }
+
+    fun signAssertion() {
+        TODO()
+    }
+
+    fun signResponse() {
+        TODO()
+    }
 }
 
 class Status() {
